@@ -84,8 +84,9 @@ def main():
             
             st.session_state.total_rows = len(df)
             
-            # Create a temporary directory for output files
-            temp_dir = tempfile.mkdtemp()
+            # Create output folder if it doesn't exist
+            output_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+            os.makedirs(output_folder, exist_ok=True)
             
             # Generate a unique output filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -95,7 +96,7 @@ def main():
             else:
                 output_filename = f"enriched_data_{timestamp}.csv"
             
-            output_filepath = os.path.join(temp_dir, output_filename)
+            output_filepath = os.path.join(output_folder, output_filename)
             st.session_state.output_filepath = output_filepath  # Store for later access
             
             # Initialize the YinYang processor with streaming output enabled

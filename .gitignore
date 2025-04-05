@@ -116,6 +116,7 @@ dmypy.json
 # User uploads and temporary files
 uploads/
 tmp/
+output/
 .DS_Store
 
 # OpenAI API key and sensitive information
