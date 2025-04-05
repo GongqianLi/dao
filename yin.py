@@ -84,7 +84,14 @@ if needed. Be specific about what data transformations are needed and why."""},
         )
         
         # Extract and return the instruction
-        return response.choices[0].message.content
+        instruction = response.choices[0].message.content
+        
+        # Print the Yin instruction response
+        print("\n===== YIN INSTRUCTION RESPONSE =====")
+        print(instruction)
+        print("===================================\n")
+        
+        return instruction
     
     def validate_result(
         self,
@@ -142,6 +149,11 @@ provide clear feedback on what's missing or wrong, and specific instructions on 
         )
         
         feedback = response.choices[0].message.content
+        
+        # Print the Yin validation response
+        print("\n===== YIN VALIDATION RESPONSE =====")
+        print(feedback)
+        print("===================================\n")
         
         # Determine if the task is complete based on the response
         is_complete = "yes" in feedback.lower().split("\n")[0].lower() and "no" not in feedback.lower().split("\n")[0].lower()

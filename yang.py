@@ -123,48 +123,58 @@ Always explain your reasoning and include any code you would execute."""},
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
-            temperature=0.3,
+            temperature=0.4,  # Slightly higher temperature for creativity in solutions
             max_tokens=1500
         )
         
-        # Extract the plan and code from the response
+        # Extract the explanation from the response
         explanation = response.choices[0].message.content
         
-        # Now execute the code on the actual data
-        # For safety, we'll execute a second call to generate safe executable code
-        exec_messages = messages.copy()
-        exec_messages.append({"role": "assistant", "content": explanation})
-        exec_messages.append({"role": "user", "content": 
-            f"Based on your analysis, generate ONLY a self-contained Python function called 'execute_task' that takes a pandas DataFrame as input and returns the processed result. Include ONLY the function definition, no other text or explanation. The function should implement the operations you described above."
-        })
-        
-        # Call the OpenAI API for executable code
-        exec_response = self.client.chat.completions.create(
-            model=self.model,
-            messages=exec_messages,
-            temperature=0.1,
-            max_tokens=1000
-        )
-        
-        # Extract the executable code
-        code = exec_response.choices[0].message.content
-        
-        # Ensure we only have the function definition
-        if "```python" in code:
-            code = code.split("```python")[1].split("```")[0].strip()
-        elif "```" in code:
-            code = code.split("```")[1].split("```")[0].strip()
-            
-        # Create a local namespace to execute the code
-        local_namespace = {
-            "pd": pd,
-            "np": np,
-            "data": data.copy(),  # Use a copy to avoid modifying the original
-            "requests": requests,
-            "json": json
-        }
+        # Print the Yang execution response
+        print("\n===== YANG EXECUTION RESPONSE =====")
+        print(explanation)
+        print("====================================\n")
         
         try:
+            # Now execute the code on the actual data
+            # For safety, we'll execute a second call to generate safe executable code
+            exec_messages = messages.copy()
+            exec_messages.append({"role": "assistant", "content": explanation})
+            exec_messages.append({"role": "user", "content": 
+                f"Based on your analysis, generate ONLY a self-contained Python function called 'execute_task' that takes a pandas DataFrame as input and returns the processed result. Include ONLY the function definition, no other text or explanation. The function should implement the operations you described above."
+            })
+            
+            # Call the OpenAI API for executable code
+            exec_response = self.client.chat.completions.create(
+                model=self.model,
+                messages=exec_messages,
+                temperature=0.1,
+                max_tokens=1000
+            )
+            
+            # Extract the executable code
+            code = exec_response.choices[0].message.content
+            
+            # Print the Yang code generation response
+            print("\n===== YANG CODE GENERATION RESPONSE =====")
+            print(code)
+            print("=========================================\n")
+            
+            # Ensure we only have the function definition
+            if "```python" in code:
+                code = code.split("```python")[1].split("```")[0].strip()
+            elif "```" in code:
+                code = code.split("```")[1].split("```")[0].strip()
+                
+            # Create a local namespace to execute the code
+            local_namespace = {
+                "pd": pd,
+                "np": np,
+                "data": data.copy(),  # Use a copy to avoid modifying the original
+                "requests": requests,
+                "json": json
+            }
+            
             # Execute the code in the local namespace
             exec(code, globals(), local_namespace)
             
