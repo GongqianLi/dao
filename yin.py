@@ -61,49 +61,49 @@ class YinAgent:
         """
         context = {
             "row_data": row_data,
-            "api_results": {},
+            # "api_results": {}, remove api calling until implmented
         }
         
         # Check if we need to call any APIs based on the column names and values
-        for column, value in row_data.items():
-            if isinstance(value, str) and column.lower() in ["name", "full_name", "person_name"]:
-                try:
-                    # Example of calling an external API for name information
-                    api_result = self._lookup_name_info(value)
-                    if api_result:
-                        context["api_results"]["name_info"] = api_result
-                except Exception as e:
-                    self.logger.error(f"Error calling API for {column}={value}: {str(e)}")
+        # for column, value in row_data.items():
+        #     if isinstance(value, str) and column.lower() in ["name", "full_name", "person_name"]:
+        #         try:
+        #             # Example of calling an external API for name information
+        #             api_result = self._lookup_name_info(value)
+        #             if api_result:
+        #                 context["api_results"]["name_info"] = api_result
+        #         except Exception as e:
+        #             self.logger.error(f"Error calling API for {column}={value}: {str(e)}")
         
         return context
     
-    def _lookup_name_info(self, name: str) -> Optional[Dict[str, Any]]:
-        """
-        Example function to lookup information about a name using an external API.
-        In a real implementation, this would call an actual API.
-        
-        Args:
-            name: The name to look up
-            
-        Returns:
-            Dictionary with name information or None if the lookup failed
-        """
-        # This is a mock implementation. In a real system, you would call an actual API.
-        try:
-            # Example API call (mocked)
-            # In a real implementation, you would use requests.get() to call an actual API
-            mock_response = {
-                "name": name,
-                "gender_probability": 0.95,
-                "likely_gender": "male" if name.lower() in ["john", "david", "michael"] else "female",
-                "likely_country": "United States",
-                "country_probability": 0.85
-            }
-            
-            return mock_response
-        except Exception as e:
-            self.logger.error(f"Error looking up name info for {name}: {str(e)}")
-            return None
+    # def _lookup_name_info(self, name: str) -> Optional[Dict[str, Any]]:
+    #     """
+    #     Example function to lookup information about a name using an external API.
+    #     In a real implementation, this would call an actual API.
+    #     
+    #     Args:
+    #         name: The name to look up
+    #         
+    #     Returns:
+    #         Dictionary with name information or None if the lookup failed
+    #     """
+    #     # This is a mock implementation. In a real system, you would call an actual API.
+    #     try:
+    #         # Example API call (mocked)
+    #         # In a real implementation, you would use requests.get() to call an actual API
+    #         mock_response = {
+    #             "name": name,
+    #             "gender_probability": 0.95,
+    #             "likely_gender": "male" if name.lower() in ["john", "david", "michael"] else "female",
+    #             "likely_country": "United States",
+    #             "country_probability": 0.85
+    #         }
+    #         
+    #         return mock_response
+    #     except Exception as e:
+    #         self.logger.error(f"Error looking up name info for {name}: {str(e)}")
+    #         return None
     
     def formulate_yang_task(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -122,24 +122,24 @@ class YinAgent:
                 "You are Yang, an AI assistant specialized in data enrichment. "
                 "Your task is to analyze data and provide enrichment attributes. "
                 "You should return ONLY a JSON object with your enrichment results. "
-                "Do not include any explanations, just return the JSON object. "
-                "Each key in the JSON object should be a new attribute, and each value should be the enrichment value."
+                "Each key in the JSON object should be an attribute, and each value should be the enrichment value in string data type."
+                "Only include your explanations and evidence weblink in evidence field when requested, to keep other fields clean "
             )
         }
         
         # Prepare the user message that contains the task for Yang
         row_description = json.dumps(context["row_data"], indent=2)
-        api_info = json.dumps(context["api_results"], indent=2) if context["api_results"] else "No API results available"
+        # api_info = json.dumps(context["api_results"], indent=2) if context["api_results"] else "No API results available" # TODO: add api when available
         
         user_message = {
             "role": "user",
             "content": (
                 f"I need you to enrich the following data row:\n\n"
                 f"DATA ROW:\n{row_description}\n\n"
-                f"API INFORMATION:\n{api_info}\n\n"
+                #f"API INFORMATION:\n{api_info}\n\n"
                 f"ENRICHMENT TASK:\n{self.user_command}\n\n"
                 f"Return ONLY a JSON object with the enriched attributes as key-value pairs. "
-                f"Do not include any explanations or markdown, only the JSON object."
+                f"Include your explanations and evidence weblink in evidence field when requested"
             )
         }
         
@@ -190,22 +190,32 @@ class YinAgent:
                     f"ORIGINAL DATA ROW:\n{row_description}\n\n"
                     f"ENRICHMENT TASK:\n{self.user_command}\n\n"
                     f"ENRICHMENT RESULT:\n{enrichment_result}\n\n"
-                    f"Is this enrichment result valid and likely accurate? "
-                    f"Respond with 'VALID' or 'INVALID' followed by your reasoning."
+                    f"Is this enrichment result looks reasonable and likely accurate with mid-low level of confidence? "
+                    f"If yes, respond with 'WOOHOO', if not, respond with 'NAYNAY'. followed by your reasoning."
                 )
             }
             
             response = self.client.chat.completions.create(
                 model=self.model_name,
+                # tools=[
+                #     {
+                #     "type": "web_search_preview",
+                #     "user_location": {
+                #         "type": "approximate",
+                #         "country": "US"
+                #     },
+                #     "search_context_size": "low"
+                #     }
+                # ],
                 messages=[system_message, user_message],
-                max_tokens=500,
-                temperature=0.3,
+                max_tokens=1000,
+                # temperature=0.3,
             )
             
             validation_response = response.choices[0].message.content
             
             # Check if the validation response indicates the enrichment is valid
-            is_valid = "VALID" in validation_response.upper().split()[0]
+            is_valid = "WOOHOO" in validation_response.upper()
             
             return is_valid, validation_response
         

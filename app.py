@@ -47,7 +47,7 @@ def main():
         with col2:
             model_name = st.selectbox(
                 "LLM Model",
-                ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"],
+                ["gpt-4o", "gpt-3.5-turbo","gpt-4o-search-preview","gpt-4o-mini-search-preview"],
                 index=0,
             )
     
@@ -87,12 +87,24 @@ def main():
             # Create a temporary directory for output files
             temp_dir = tempfile.mkdtemp()
             
-            # Initialize the YinYang processor
+            # Generate a unique output filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            if uploaded_file and uploaded_file.name:
+                base_filename = os.path.splitext(uploaded_file.name)[0]
+                output_filename = f"{base_filename}_enriched_{timestamp}.csv"
+            else:
+                output_filename = f"enriched_data_{timestamp}.csv"
+            
+            output_filepath = os.path.join(temp_dir, output_filename)
+            st.session_state.output_filepath = output_filepath  # Store for later access
+            
+            # Initialize the YinYang processor with streaming output enabled
             processor = YinYangProcessor(
                 model_name=model_name,
                 max_retries=max_retries,
                 log_callback=add_log_message,
                 progress_callback=update_progress,
+                output_file=output_filepath  # Enable streaming output
             )
             
             # Process the data
@@ -103,7 +115,7 @@ def main():
             st.session_state.is_processing = False
             
             # Show success message
-            st.success(f"✅ Processing complete! Enriched {len(result_df)} rows.")
+            st.success(f"✅ Processing complete! Enriched {len(result_df)} rows. Data has been automatically saved to {output_filepath}")
     
     # Display log messages
     with log_col:
@@ -134,18 +146,32 @@ def main():
             if uploaded_file and uploaded_file.name:
                 filename, ext = os.path.splitext(uploaded_file.name)
                 if ext.lower() in ['.xlsx', '.xls']:
-                    output_buffer = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
-                    with pd.ExcelWriter(output_buffer.name) as writer:
-                        st.session_state.processed_data.to_excel(writer, index=False)
+                    # For Excel files, offer both Excel and CSV downloads
+                    col1, col2 = st.columns(2)
                     
-                    with open(output_buffer.name, "rb") as f:
+                    with col1:
+                        output_buffer = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+                        with pd.ExcelWriter(output_buffer.name) as writer:
+                            st.session_state.processed_data.to_excel(writer, index=False)
+                        
+                        with open(output_buffer.name, "rb") as f:
+                            st.download_button(
+                                label="📥 Download as Excel",
+                                data=f,
+                                file_name=f"{filename}_enriched.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            )
+                    
+                    with col2:
+                        csv_data = st.session_state.processed_data.to_csv(index=False)
                         st.download_button(
-                            label="📥 Download Enriched File",
-                            data=f,
-                            file_name=f"{filename}_enriched.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            label="📥 Download as CSV",
+                            data=csv_data,
+                            file_name=f"{filename}_enriched.csv",
+                            mime="text/csv",
                         )
                 else:
+                    # For CSV files, just offer CSV download
                     csv_data = st.session_state.processed_data.to_csv(index=False)
                     st.download_button(
                         label="📥 Download Enriched File",
@@ -153,6 +179,10 @@ def main():
                         file_name=f"{filename}_enriched.csv",
                         mime="text/csv",
                     )
+                
+                # Add note about auto-saved data
+                if hasattr(st.session_state, 'output_filepath') and os.path.exists(st.session_state.output_filepath):
+                    st.info(f"💾 Data was also saved automatically to: {st.session_state.output_filepath}")
             
             # Display data preview
             st.subheader("Data Preview")

@@ -52,10 +52,20 @@ class YangAgent:
             # Create a chat completion request with the messages
             response = self.client.chat.completions.create(
                 model=self.model_name,
+                # tools=[
+                #     {
+                #     "type": "web_search_preview",
+                #     "user_location": {
+                #         "type": "approximate",
+                #         "country": "US"
+                #     },
+                #     "search_context_size": "low"
+                #     }
+                # ],
                 messages=messages,
-                max_tokens=2000,
-                temperature=0.7,
-                response_format={"type": "json_object"}
+                max_tokens=1000,
+                # temperature=0.7,
+                # response_format={"type": "json_object"}
             )
             
             # Extract the content from the response
@@ -104,53 +114,53 @@ class YangAgent:
             self.logger.error(f"Error extracting JSON: {str(e)}")
             return None
     
-    def _perform_web_search(self, query: str) -> List[Dict[str, Any]]:
-        """
-        Perform a web search using the LLM's browsing capabilities.
-        This is a placeholder for a real implementation that would use the
-        browsing capabilities of models like GPT-4 with browsing.
-        
-        Args:
-            query: Search query
-            
-        Returns:
-            List of search results
-        """
-        # This is a mock implementation. In a real system, you would use
-        # a model with browsing capabilities or integrate with a search API.
-        system_message = {
-            "role": "system",
-            "content": (
-                "You are a web search assistant. Your task is to simulate the results "
-                "of a web search for the user's query. Return relevant information "
-                "that would likely be found through such a search."
-            )
-        }
-        
-        user_message = {
-            "role": "user",
-            "content": f"Please perform a web search for: {query}"
-        }
-        
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[system_message, user_message],
-                max_tokens=1000,
-                temperature=0.7,
-            )
-            
-            # In a real implementation, this would parse and structure actual search results
-            mock_results = [
-                {
-                    "title": "Search Result 1",
-                    "content": response.choices[0].message.content,
-                    "url": "https://example.com/search-result-1"
-                }
-            ]
-            
-            return mock_results
-        
-        except Exception as e:
-            self.logger.error(f"Error performing web search: {str(e)}")
-            return []
+    # def _perform_web_search(self, query: str) -> List[Dict[str, Any]]:
+    #     """
+    #     Perform a web search using the LLM's browsing capabilities.
+    #     This is a placeholder for a real implementation that would use the
+    #     browsing capabilities of models like GPT-4 with browsing.
+    #     
+    #     Args:
+    #         query: Search query
+    #         
+    #     Returns:
+    #         List of search results
+    #     """
+    #     # This is a mock implementation. In a real system, you would use
+    #     # a model with browsing capabilities or integrate with a search API.
+    #     system_message = {
+    #         "role": "system",
+    #         "content": (
+    #             "You are a web search assistant. Your task is to simulate the results "
+    #             "of a web search for the user's query. Return relevant information "
+    #             "that would likely be found through such a search."
+    #         )
+    #     }
+    #     
+    #     user_message = {
+    #         "role": "user",
+    #         "content": f"Please perform a web search for: {query}"
+    #     }
+    #     
+    #     try:
+    #         response = self.client.chat.completions.create(
+    #             model=self.model_name,
+    #             messages=[system_message, user_message],
+    #             max_tokens=3000,
+    #             temperature=0.7,
+    #         )
+    #         
+    #         # In a real implementation, this would parse and structure actual search results
+    #         mock_results = [
+    #             {
+    #                 "title": "Search Result 1",
+    #                 "content": response.choices[0].message.content,
+    #                 "url": "https://example.com/search-result-1"
+    #             }
+    #         ]
+    #         
+    #         return mock_results
+    #     
+    #     except Exception as e:
+    #         self.logger.error(f"Error performing web search: {str(e)}")
+    #         return []

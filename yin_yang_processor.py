@@ -1,7 +1,6 @@
 import pandas as pd
-import os
+
 import json
-import time
 from typing import Callable, Dict, List, Any, Optional
 
 from yin import YinAgent
@@ -20,6 +19,7 @@ class YinYangProcessor:
         max_retries: int = 3,
         log_callback: Optional[Callable] = None,
         progress_callback: Optional[Callable] = None,
+        output_file: Optional[str] = None,
     ):
         """
         Initialize the Yin-Yang processor.
@@ -29,11 +29,13 @@ class YinYangProcessor:
             max_retries: Maximum number of retries per row
             log_callback: Callback function for logging messages
             progress_callback: Callback function for updating progress
+            output_file: Path to output file for streaming results (optional)
         """
         self.model_name = model_name
         self.max_retries = max_retries
         self.log_callback = log_callback
         self.progress_callback = progress_callback
+        self.output_file = output_file
         self.logger = get_logger("YinYangProcessor")
         
         # Initialize agents
@@ -65,6 +67,9 @@ class YinYangProcessor:
         # Create a copy of the input data frame to avoid modifying the original
         result_df = df.copy()
         
+        # Add an ai_decision column to track validation status of each row
+        result_df["ai_decision"] = ""
+        
         # Log the start of processing
         total_rows = len(df)
         self.log("system", f"Starting to process {total_rows} rows")
@@ -73,6 +78,12 @@ class YinYangProcessor:
         # Initialize Yin with the user command
         self.log("system", "Initializing Yin agent with user command")
         self.yin.initialize_with_command(user_command)
+        
+        # Set up streaming output if an output file is specified
+        if self.output_file:
+            self.log("system", f"Streaming results to {self.output_file}")
+            # Create the file with headers
+            result_df.head(0).to_csv(self.output_file, index=False, mode='w')
         
         # Process each row
         for index, row in df.iterrows():
@@ -84,9 +95,10 @@ class YinYangProcessor:
             # Convert row to a dictionary
             row_dict = row.to_dict()
             
-            # Initialize retry counter
+            # Initialize retry counter and state tracking
             retry_count = 0
             success = False
+            had_error = False  # To track if any errors occurred during processing
             
             while not success and retry_count < self.max_retries:
                 try:
@@ -112,26 +124,62 @@ class YinYangProcessor:
                     self.log("yin", "Validating Yang's response")
                     validation_result, validation_message = self.yin.validate_yang_response(yang_result, yin_context)
                     
+                    # Add new columns to the result dataframe regardless of validation outcome
+                    # This ensures enriched fields are added even for invalid results
+                    for key, value in yang_result.items():
+                        result_df.loc[index, key] = str(value)  # Convert all values to string for consistency
+                    
                     if validation_result:
-                        # Step 5: If valid, add the enriched data to the result
+                        # If valid, update ai_decision status
                         self.log("yin", f"Validation successful: {validation_message}")
                         
-                        # Add new columns to the result dataframe
-                        for key, value in yang_result.items():
-                            result_df.loc[index, key] = value
+                        # Mark this row as valid
+                        result_df.loc[index, "ai_decision"] = "valid"
                         
+                        # Set success flag and immediately break out of the retry loop
                         success = True
+                        break  # Skip any remaining retries since we have a valid result
                     else:
-                        # If invalid, retry
+                        # If invalid, log the reason and retry
                         self.log("yin", f"Validation failed: {validation_message}")
+                        
+                        # Mark this attempt as invalid in ai_decision
+                        # May be overwritten by future successful attempts
+                        result_df.loc[index, "ai_decision"] = "invalid"
+                        
                         retry_count += 1
+                        
+                        # If this is the last retry, log that all attempts failed
+                        if retry_count >= self.max_retries:
+                            self.log("yin", f"All validation attempts failed for row {current_row}")
                 
                 except Exception as e:
-                    self.log("error", f"Error processing row {current_row}: {str(e)}")
+                    error_message = str(e)
+                    self.log("error", f"Error processing row {current_row}: {error_message}")
+                    had_error = True
                     retry_count += 1
+                    
+                    # If this is the last retry, prepare to mark as error
+                    if retry_count >= self.max_retries:
+                        self.log("error", f"All processing attempts failed with errors for row {current_row}")
             
             if not success:
-                self.log("error", f"Failed to process row {current_row} after {self.max_retries} attempts")
+                # Detailed log message about the final status
+                if had_error:
+                    # If any error occurred during processing, mark as "error"
+                    result_df.loc[index, "ai_decision"] = "error"
+                    self.log("system", f"Row {current_row}: Final status 'error' - Processing exceptions prevented completion")
+                else:
+                    # If we just couldn't get a valid result (validation failures), mark as "invalid"
+                    result_df.loc[index, "ai_decision"] = "invalid"
+                    self.log("system", f"Row {current_row}: Final status 'invalid' - Validation criteria not met after {self.max_retries} attempts")
+            
+            # Stream the processed row to the output file if specified
+            if self.output_file:
+                # Extract just the current row and append it to the output file
+                row_df = result_df.iloc[[index]]
+                row_df.to_csv(self.output_file, mode='a', header=False, index=False)
+                self.log("system", f"Row {current_row} written to output file")
         
         self.log("system", f"Processing complete. Enriched {total_rows} rows.")
         return result_df
